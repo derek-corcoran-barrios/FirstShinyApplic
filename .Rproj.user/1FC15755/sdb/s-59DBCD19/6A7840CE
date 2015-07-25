@@ -1,0 +1,16 @@
+{
+    "contents" : "\n# This is the server logic for a Shiny web application.\n# You can find out more about building applications with Shiny here:\n#\n# http://shiny.rstudio.com\n#\n\nlibrary(shiny)\nlibrary(raster)\nlibrary(maps)\nlibrary(maptools)\nlibrary(rgdal)\nlibrary(latticeExtra)\nlibrary(knitr)\nlibrary(gdistance)\nlibrary(plotKML)\ntopo <- readGDAL(\"speed.asc\")\ntopo<-raster (topo)\nPNF<- readGDAL(\"PNF.asc\")\nPNF<-raster (PNF)\nhd <- transition(topo,mean,8,symm=FALSE)\n\n\nshinyServer(\n  function(input, output) {\n    output$PlumasMap<- renderPlot({\n      StartPoint<-cbind(input$Long1, input$Lat1)\n      EndPoint<-cbind(input$Long2, input$Lat2)\n      plot(PNF)\n      points(StartPoint, pch=21, col=\"blue\", bg=\"blue\")\n      points(EndPoint, pch=21, col=\"red\", bg=\"red\")\n      PointToPoint<- shortestPath(hd, StartPoint, EndPoint, output=\"SpatialLines\")\n      lines(PointToPoint, col=\"black\", lwd=2)  \n    })\n    output$oid1<-renderPrint({input$Lat1})\n    output$oid2<-renderPrint({input$Long1})\n    output$oid3<-renderPrint({input$Lat2})\n    output$oid4<-renderPrint({input$Long2})\n\n  }\n)\n\n",
+    "created" : 1434925389998.000,
+    "dirty" : false,
+    "encoding" : "UTF-8",
+    "folds" : "",
+    "hash" : "618745801",
+    "id" : "6A7840CE",
+    "lastKnownWriteTime" : 1437853465,
+    "path" : "~/Rshinyapp/FistShinyApp/server.R",
+    "project_path" : "server.R",
+    "properties" : {
+    },
+    "source_on_save" : false,
+    "type" : "r_source"
+}

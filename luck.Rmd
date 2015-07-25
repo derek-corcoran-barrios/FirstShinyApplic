@@ -1,0 +1,156 @@
+---
+title: "Untitled"
+author: "Derek Corcoran"
+date: "Wednesday, July 22, 2015"
+output: html_document
+---
+
+```{r, message=FALSE, warning=FALSE, echo=FALSE,results='hide'}
+#first load libraries
+library(raster)
+library(rasterVis)
+library(maps)
+library(maptools)
+library(rgdal)
+library(latticeExtra)
+library(dplyr)
+library(knitr)
+library(unmarked)
+library(lubridate)
+library(glmulti)
+library(gdistance)
+library(spatstat)
+library(plotKML)
+library(stringi)
+```
+Load topography and roads and rasterize roads
+
+```{r,echo=FALSE, cache=TRUE, warning=FALSE,message=FALSE}
+PNF<- readGDAL("PNF.asc")
+PNF<-raster (PNF)
+topo <- readGDAL("topomap.asc")
+topo<-raster (topo)
+topo<-resample(topo,PNF)
+```
+
+```{r,echo=FALSE, cache=TRUE, warning=FALSE,message=FALSE}
+roads.v <- readOGR(dsn="C:/Users/usuario/Bats_California/layers",layer="Roads")
+roads.v <- spTransform(roads.v, CRS("+proj=longlat +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +no_defs"))
+```
+
+
+```{r,echo=FALSE, cache=TRUE, message=FALSE, warning=FALSE}
+#res 0.0006
+arterial<-roads.v[roads.v$FUNCTIONAL=="A - ARTERIAL",]#22.352
+template <- PNF  # this will be the template
+template[] <- NA  # assigns all values as NA
+arterial.r <- rasterize(arterial, template, field=22.352)
+tr1 <- transition(arterial.r, transitionFunction=mean, directions=8)
+tr1<-geoCorrection(tr1, scl=FALSE)
+
+collector<-roads.v[roads.v$FUNCTIONAL=="C - COLLECTOR",]#17.8816
+template <- PNF  # this will be the template
+template[] <- NA  # assigns all values as NA
+collector.r <- rasterize(collector, template, field=17.8816)
+tr2 <- transition(collector.r, transitionFunction=mean, directions=8)
+tr2<-geoCorrection(tr2, scl=FALSE)
+
+local<-roads.v[roads.v$FUNCTIONAL=="L - LOCAL",]#13.4112
+template <- PNF  # this will be the template
+template[] <- NA  # assigns all values as NA
+local.r <- rasterize(local, template, field=13.4112)
+tr3 <- transition(local.r, transitionFunction=mean, directions=8)
+tr3<-geoCorrection(tr3, scl=FALSE)
+
+other<-roads.v[is.na(roads.v$FUNCTIONAL),]#22.352
+template <- PNF  # this will be the template
+template[] <- NA  # assigns all values as NA
+other.r <- rasterize(other, template, field=22.352)
+tr4 <- transition(other.r, transitionFunction=mean, directions=8)
+tr4<-geoCorrection(tr4, scl=FALSE)
+```
+
+
+```{r,echo=FALSE, cache=TRUE,warning=FALSE}
+heightDiff <- function(x){x[2] - x[1]}
+hd <- transition(topo,heightDiff,8,symm=FALSE)
+slope<-geoCorrection(hd, scl=FALSE)
+```
+
+
+```{r, echo=FALSE,cache=TRUE, warning=FALSE}
+adj <- adjacent(topo, cells=1:ncell(topo), pairs=TRUE, directions=8)
+speed <- slope
+speed[adj] <- exp(-3.5 * abs(slope[adj] + 0.05))
+x <- geoCorrection(speed, scl=FALSE)
+```
+
+```{r,echo=FALSE, cache=TRUE, warning=FALSE}
+speed2<-x+tr1+tr2+tr3+tr4
+```
+
+```{r,cache=TRUE}
+split<-raster(speed2)
+plot(split)
+res(split)
+writeRaster(split, filename="speed.asc", format="ascii")
+```
+
+
+```{r,echo=FALSE, cache=TRUE}
+C.house<-c(-120.978485, 40.051758)
+Quincy<-c(-120.947176, 39.936836)
+h1nfs6<-c(-120.71708839034, 39.90249278342)
+h3nfs3<-c(-120.53036175598, 39.70433390614)
+#h5fs10<-c(-120.73995287618, 40.26070306158)
+#h1fs2<-c(-121.31918651746,39.87962829758)
+#h2fs6<-c(-120.26360942118,39.86057455938)
+
+QuincyToh1nfs6<- shortestPath(speed2, Quincy, h1nfs6, output="SpatialLines")
+h1nfs6Toh3nfs3<- shortestPath(speed2, h1nfs6, h3nfs3,output="SpatialLines")
+#h1fs5Toh5fs10<- shortestPath(speed2, h1fs5, h5fs10, output="SpatialLines")
+#H5FS7ToH2FS12<-shortestPath(speed2, h5fs7, h2fs12, output="SpatialLines")
+```
+
+```{r,echo=FALSE, warning=TRUE}
+plot(topo)
+lines(roads.v)
+lines(QuincyToh1nfs6, col="red", lwd=2)#1
+lines(h1nfs6Toh3nfs3, col="red", lwd=2)#2
+#lines(h1fs5Toh5fs10, col="red", lwd=2)#3
+#lines(H5FS7ToH2FS12, col="red", lwd=2)#4
+
+
+#1
+proj4string(QuincyToh1nfs6) <- CRS("+proj=longlat +datum=WGS84")
+# not yet ready for export to KML;
+parse_proj4(proj4string(QuincyToh1nfs6))
+QuincyToh1nfs6<- reproject(QuincyToh1nfs6)
+# ... now ready for exportspTransform(RoadToH1FS12, CRS("+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs +towgs84=0,0,0"))
+kml(QuincyToh1nfs6, kml = FALSE)
+
+2
+proj4string(h1nfs6Toh3nfs3) <- CRS("+proj=longlat +datum=WGS84")
+# not yet ready for export to KML;
+parse_proj4(proj4string(h1nfs6Toh3nfs3))
+QuincyToH5FS3<- reproject(h1nfs6Toh3nfs3)
+# ... now ready for exportspTransform(RoadToH1FS12, CRS("+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs +towgs84=0,0,0"))
+kml(h1nfs6Toh3nfs3, kml = FALSE)
+
+
+3
+#proj4string(h1fs5Toh5fs10) <- CRS("+proj=longlat +datum=WGS84")
+# not yet ready for export to KML;
+#parse_proj4(proj4string(h1fs5Toh5fs10))
+#h1fs5Toh5fs10<- reproject(h1fs5Toh5fs10)
+# ... now ready for exportspTransform(RoadToH1FS12, CRS("+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs +towgs84=0,0,0"))
+#kml(h1fs5Toh5fs10, kml = FALSE)
+
+#4
+#proj4string(H5FS7ToH2FS12) <- CRS("+proj=longlat +datum=WGS84")
+# not yet ready for export to KML;
+#parse_proj4(proj4string(H5FS7ToH2FS12))
+#H5FS7ToH2FS12<- reproject(H5FS7ToH2FS12)
+# ... now ready for exportspTransform(RoadToH1FS12, CRS("+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs +towgs84=0,0,0"))
+#kml(H5FS7ToH2FS12, kml = FALSE)
+```
