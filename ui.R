@@ -22,7 +22,7 @@ shinyUI(pageWithSidebar
            h5("The blue point is your starting point"),
            h5("The red point is your destination"),
            h5("The black line is your path"),
-           submitButton("Submit"),
+           submitButton("Submit")
            )
         ))
 
